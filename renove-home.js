@@ -140,10 +140,12 @@
        Fondo oscuro o con espacio libre a la izquierda (compu) y abajo
        (celular), que es donde va el texto. */
     imgHero: 'https://i.ibb.co/Jjwf0WwR/Facial-balm-on-marble-slab-20260927225121-1.jpg',
-    imgHeroMovil: '',
+    imgHeroMovil: 'https://i.ibb.co/Zz9M4ZHT/Facial-balm-on-marble-slab-20260928011001.jpg',
     /* Qué parte de la foto del hero queda siempre a la vista al recortarla.
        Si el frasco está a la derecha de la foto, probá '75% 50%'. */
     imgHeroEnfoque: '80% 50%',
+    /* Lo mismo pero para celular (solo se usa si NO hay imgHeroMovil). */
+    imgHeroEnfoqueMovil: '72% 50%',
 
     /* Frasco PNG sin fondo (tabla comparativa y barra fija) */
     imgPack: 'https://res.cloudinary.com/kbekt7pq/image/upload/v1790467426/Product_packshot_on_white_backgr__20260926202729-removebg-preview_1.png',
@@ -475,6 +477,15 @@
       R + ' .rnv-hero-bg{position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(120% 90% at 70% 35%,' + mezclar(COL.vinoOscuro, '#FFFFFF', .12) + ' 0%,' + COL.vinoOscuro + ' 70%)}',
       R + ' .rnv-hero-bg picture,' + R + ' .rnv-hero-bg img{display:block;width:100%;height:100%}',
       R + ' .rnv-hero-bg img{object-fit:cover}',
+      (CFG.imgHeroMovil ? '@media(max-width:899px){'
+        /* Celular con foto vertical 9:16: la foto se ve entera arriba y el
+           texto arranca debajo de la mesa (72% de la foto). */
+        + R + ' .rnv-hero{display:block!important;min-height:0!important}'
+        + R + ' .rnv-hero-bg{top:-40vw!important;bottom:auto!important;height:179.2vw!important;background:var(--vino-osc)}'
+        + R + ' .rnv-hero-bg img{object-position:50% 0!important}'
+        + R + ' .rnv-hero-bg:after{background:linear-gradient(to top,' + rgba(COL.vinoOscuro, 1) + ' 0%,' + rgba(COL.vinoOscuro, .6) + ' 18%,' + rgba(COL.vinoOscuro, 0) + ' 32%)!important}'
+        + R + ' .rnv-hero-in{padding-top:92vw!important}}' : ''),
+      '@media(max-width:899px){' + R + ' .rnv-hero-bg img{object-position:' + (CFG.imgHeroMovil ? '50% 0' : (CFG.imgHeroEnfoqueMovil || CFG.imgHeroEnfoque || '50% 50%')) + '!important}}',
       R + ' .rnv-hero-bg:after{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to top,' + rgba(COL.vinoOscuro, .92) + ' 0%,' + rgba(COL.vinoOscuro, .68) + ' 36%,' + rgba(COL.vinoOscuro, .16) + ' 66%,' + rgba(COL.vinoOscuro, 0) + ' 100%)}',
       R + ' .rnv-hero-in{position:relative;z-index:1;width:100%;padding:120px 20px 40px}',
       R + ' .rnv-hero-rate{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;font-weight:600;line-height:1.3;letter-spacing:.08em;text-transform:uppercase;color:#fff}',
@@ -541,9 +552,7 @@
       R + ' .rnv-ugc{padding-bottom:52px}',
       R + ' .rnv-ugc .rnv-sechead{margin-bottom:26px}',
       R + ' .rnv-ugc-mq{position:relative;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(to right,transparent,#000 5%,#000 95%,transparent)}',
-      R + ' .rnv-ugc-track{display:flex;width:max-content;animation:rnv-ugc 48s linear infinite}',
-      R + ' .rnv-ugc-mq:hover .rnv-ugc-track{animation-play-state:paused}',
-      '@keyframes rnv-ugc{to{transform:translateX(-50%)}}',
+      R + ' .rnv-ugc-track{display:flex;width:max-content;will-change:transform;animation:none!important;transition:none!important}',
       R + ' .rnv-ugc-mitad{display:flex;gap:10px;padding-right:10px}',
       R + ' .rnv-ugc-it{flex:0 0 auto;width:150px;height:200px;overflow:hidden;border-radius:14px;background:var(--piedra)}',
       R + ' .rnv-ugc-it img{width:100%;height:100%;object-fit:cover}',
@@ -553,8 +562,39 @@
       R + ' .rnv-trust li{display:flex;align-items:center;gap:7px}',
       R + ' .rnv-trust svg{width:18px;height:18px;flex:0 0 auto;color:var(--vino)}',
       '@media(min-width:768px){' + R + ' .rnv-ugc-it{width:210px;height:280px}' + R + ' .rnv-ugc-mitad{gap:14px;padding-right:14px}}',
-      '@media(prefers-reduced-motion:reduce){' + R + ' .rnv-ugc-mq{overflow-x:auto}' + R + ' .rnv-ugc-track{animation:none!important}}'
+      R + ' .rnv-ugc-mitad img{max-width:none!important}'
     ].join(''),
+    /* Cinta infinita movida con JavaScript (no depende del CSS del tema
+       ni del ajuste "reducir movimiento" del teléfono). */
+    init: function (el) {
+      var track = el.querySelector('.rnv-ugc-track');
+      var mitad = el.querySelector('.rnv-ugc-mitad');
+      var mq = el.querySelector('.rnv-ugc-mq');
+      if (!track || !mitad || !window.requestAnimationFrame) return;
+      var x = 0, ancho = 0, ultimo = 0, pausa = false;
+      function medir() { ancho = mitad.getBoundingClientRect().width; }
+      function vel() { return window.innerWidth < 768 ? 35 : 50; } /* px por segundo */
+      function paso(t) {
+        if (!ultimo) ultimo = t;
+        var dt = Math.min((t - ultimo) / 1000, 0.1); ultimo = t;
+        if (!ancho) medir();
+        if (!pausa && ancho > 0) {
+          x -= vel() * dt;
+          if (-x >= ancho) x += ancho;
+          track.style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)';
+        }
+        requestAnimationFrame(paso);
+      }
+      medir();
+      Array.prototype.forEach.call(mitad.querySelectorAll('img'), function (im) {
+        if (!im.complete) im.addEventListener('load', medir);
+      });
+      window.addEventListener('resize', medir);
+      window.addEventListener('load', medir);
+      mq.addEventListener('mouseenter', function () { pausa = true; });
+      mq.addEventListener('mouseleave', function () { pausa = false; });
+      requestAnimationFrame(paso);
+    },
     html: function () {
       var fotos = (CFG.fotosCarrusel && CFG.fotosCarrusel.length) ? CFG.fotosCarrusel : CFG.fotosResenas, items = [];
       while (items.length < 10) items = items.concat(fotos);
